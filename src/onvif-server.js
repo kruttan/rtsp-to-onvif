@@ -2,7 +2,7 @@ const soap = require('soap');
 const http = require('http');
 const dgram = require('dgram');
 const xml2js = require('xml2js');
-const uuid = require('node-uuid');
+const { v1: uuidv1 } = require('uuid');
 const url = require('url');
 const fs = require('fs');
 const logger = require('simple-node-logger');
@@ -345,39 +345,67 @@ module.exports = class OnvifServer {
         this.server = http.createServer(this.listen);
         this.server.listen(this.config.ports.server, this.config.hostname);
 
-        this.deviceService = soap.listen(this.server, {
-            path: '/onvif/device_service',
-            services: this.onvif,
-            xml: fs.readFileSync('./wsdl/device_service.wsdl', 'utf8'),
-            forceSoap12Headers: true
-        });
-       
+        try {
+            this.deviceService = soap.listen(this.server, {
+                path: '/onvif/device_service',
+                services: this.onvif,
+                xml: fs.readFileSync('./wsdl/device_service.wsdl', 'utf8'),
+                forceSoap12Headers: true,
+                suppressStack: false,
+                returnFault: true
+            });
+        } catch (err) {
+            this.logger.error(`Failed to start device service: ${err.message}`);
+            this.logger.error(err.stack);
+        }
 
-        this.mediaService = soap.listen(this.server, {
-            path: '/onvif/media_service',
-            services: this.onvif,
-            xml: fs.readFileSync('./wsdl/media_service.wsdl', 'utf8'),
-            forceSoap12Headers: true
-        });
+        try {
+            this.mediaService = soap.listen(this.server, {
+                path: '/onvif/media_service',
+                services: this.onvif,
+                xml: fs.readFileSync('./wsdl/media_service.wsdl', 'utf8'),
+                forceSoap12Headers: true,
+                suppressStack: false,
+                returnFault: true
+            });
+        } catch (err) {
+            this.logger.error(`Failed to start media service: ${err.message}`);
+            this.logger.error(err.stack);
+        }
         
     }
 
     enableDebugOutput() {
+        const self = this;
         this.deviceService.log = function(type, data, req){
-            console.debug(`SERVER: ${data}`);
-            //there is no logger in this context
+            if (type === 'error') {
+                console.error(`SERVER ERROR: ${data}`);
+                if (data && data.stack) {
+                    console.error(`Stack trace: ${data.stack}`);
+                }
+            } else {
+                console.debug(`SERVER: ${data}`);
+            }
         };
         this.mediaService.log = function(type, data, req){
-            console.debug(`SERVER: ${data}`);
-            //there is no logger in this context
+            if (type === 'error') {
+                console.error(`SERVER ERROR: ${data}`);
+                if (data && data.stack) {
+                    console.error(`Stack trace: ${data.stack}`);
+                }
+            } else {
+                console.debug(`SERVER: ${data}`);
+            }
         };
-        // this.deviceService.on('request', (request, methodName) => {
-        //     this.logger.debug(`SERVER: ${this.config.name} - DeviceService: ${methodName}`);
-        // });
-
-        // this.mediaService.on('request', (request, methodName) => {
-        //     this.logger.debug(`SERVER: ${this.config.name} -  MediaService: ${methodName}`);
-        // });
+        
+        // Add error handlers to catch and log SOAP processing errors
+        this.deviceService.on('headers', function(headers, methodName) {
+            self.logger.debug(`SERVER: ${self.config.name} - DeviceService headers for: ${methodName}`);
+        });
+        
+        this.mediaService.on('headers', function(headers, methodName) {
+            self.logger.debug(`SERVER: ${self.config.name} - MediaService headers for: ${methodName}`);
+        });
     }
 
     startDiscovery() {
@@ -405,7 +433,7 @@ module.exports = class OnvifServer {
                         `<?xml version="1.0" encoding="UTF-8"?>
                         <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dn="http://www.onvif.org/ver10/network/wsdl">
                             <SOAP-ENV:Header>
-                                <wsa:MessageID>uuid:${uuid.v1()}</wsa:MessageID>
+                                <wsa:MessageID>uuid:${uuidv1()}</wsa:MessageID>
                                 <wsa:RelatesTo>${probeUuid}</wsa:RelatesTo>
                                 <wsa:To SOAP-ENV:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</wsa:To>
                                 <wsa:Action SOAP-ENV:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2005/04/discovery/ProbeMatches</wsa:Action>
