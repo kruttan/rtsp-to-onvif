@@ -1,6 +1,15 @@
+// Polyfill for deprecated util functions
+const util = require('util');
+if (!util.isArray) {
+    util.isArray = Array.isArray;
+}
+if (!util.isDate) {
+    util.isDate = (arg) => arg instanceof Date;
+}
+
 const tcpProxy = require('node-tcp-proxy');
 const argparse = require('argparse');
-const logger = require('simple-node-logger').createSimpleLogger();
+const logger = require('./src/logger').createSimpleLogger();
 
 const OnvifServer = require('./src/onvif-server');
 const { readAndCheckConfig } = require('./src/config-tools');
