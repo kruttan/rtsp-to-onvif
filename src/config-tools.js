@@ -36,8 +36,10 @@ function sleep(seconds){
 
 function readAndCheckConfig(logger, configFile) {
 
-    
+
     let config = readConfig(logger, configFile);
+
+    const allowAutoGen = process.env.AUTO_GENERATE_IDS === '1';
 
     let isSaveRequired = false;
     let proxyCounter = 0;
@@ -45,6 +47,11 @@ function readAndCheckConfig(logger, configFile) {
 
         //Generate a V4 UUID
         if (!onvifConfig.uuid) {
+            if (!allowAutoGen) {
+                logger.error(`CONFIG: Missing uuid for camera "${onvifConfig.name}". Refusing to auto-generate.`);
+                logger.error(`CONFIG: Set AUTO_GENERATE_IDS=1 to allow, or add a uuid to the config file.`);
+                process.exit(1);
+            }
             let newId = generateUUIDv4();
             logger.info(`CONFIG: UUIDv4 - ${newId}`);
             onvifConfig.uuid = newId;
@@ -53,6 +60,11 @@ function readAndCheckConfig(logger, configFile) {
 
         // Generate Network MAC for Unicast LAA Prefix
         if (!onvifConfig.mac) {
+            if (!allowAutoGen) {
+                logger.error(`CONFIG: Missing mac for camera "${onvifConfig.name}". Refusing to auto-generate.`);
+                logger.error(`CONFIG: Set AUTO_GENERATE_IDS=1 to allow, or add a mac to the config file.`);
+                process.exit(1);
+            }
             let newId = generateNetworkMac();
             logger.info(`CONFIG: MAC - ${newId}`);
             onvifConfig.mac = newId;
